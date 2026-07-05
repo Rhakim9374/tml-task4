@@ -75,7 +75,10 @@ def best_extraction(
     for d in denoisers:
         try:
             c = cross_half_consistency(stack, d, method)
-        except Exception:
+        except Exception as e:
+            # Surface failures — a silently skipped denoiser (e.g. nlmeans dying
+            # under a bad numpy build) would quietly pick a weaker fallback.
+            print(f"  [warn] denoiser {d!r} failed for {group_name}: {type(e).__name__}: {e}")
             continue
         scored.append((c, d))
     if not scored:

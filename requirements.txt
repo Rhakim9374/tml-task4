@@ -1,4 +1,6 @@
-numpy>=1.24
+# numpy pinned <2: the cluster's torch 2.3.1 is built against numpy 1.x, and
+# numpy 2.x breaks scikit-image's nlmeans denoiser (our strongest extractor).
+numpy>=1.24,<2
 pillow>=10.0
 requests>=2.31
 torch>=2.0
@@ -6,4 +8,4 @@ torchvision>=0.15
 lpips>=0.1.4
 scipy>=1.10
 scikit-image>=0.21
-opencv-python-headless>=4.8
+opencv-python-headless>=4.8,<5

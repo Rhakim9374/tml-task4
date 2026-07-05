@@ -8,7 +8,7 @@
 # login node allows). First accept the dataset's terms on its HF page while logged
 # in, then create a read token at https://huggingface.co/settings/tokens.
 #
-#   HF_REPO=SprintML/tml26_task4 HF_TOKEN=hf_xxx bash cluster/fetch_data.sh
+#   HF_REPO=SprintML/tml2026_task4 HF_TOKEN=hf_xxx bash cluster/fetch_data.sh
 #
 # Fallbacks: a local data/Dataset.zip (extracted), or a direct DATA_URL to wget.
 set -euo pipefail

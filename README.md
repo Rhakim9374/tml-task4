@@ -50,9 +50,8 @@ methods (learned denoisers, surrogate-decoder optimisation, WMCopier).
 git clone https://github.com/Rhakim9374/tml-task4.git && cd tml-task4
 pip install -r requirements.txt
 
-# 1. Get the dataset into data/Dataset/  (the HF dataset is gated, so scp the zip)
-scp data/Dataset.zip <user>@conduit2.hpc.uni-saarland.de:~/tml-task4/data/
-bash cluster/fetch_data.sh                 # just extracts data/Dataset.zip
+# 1. Get the dataset into data/Dataset/  (gated on HF -> download with your token)
+HF_REPO=SprintML/tml2026_task4 HF_TOKEN=hf_xxx bash cluster/fetch_data.sh
 
 # 2. (diagnostic) how forgeable is each group?
 python -m scripts.analyze --dataset data/Dataset

@@ -1,0 +1,43 @@
+# Claude Code local state
+.claude/
+CLAUDE.md
+
+# Task materials (PDFs, HPC guide) — not needed at runtime, not committed
+Relevant/
+
+# Provided templates pulled from HuggingFace (task_template.py, submission.py) —
+# kept locally for reference; our own code lives in src/ and scripts/
+Reference/
+reference/
+
+# Internal contingency plans / notes — not part of the deliverable
+plans/
+
+# Dataset (~120 MB extracted) — fetched from HuggingFace, never committed
+data/
+*.zip
+
+# Pipeline outputs
+submissions/
+runlogs/
+checkpoints/
+artifacts/
+*.npz
+*.npy
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# OS / editor metadata
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

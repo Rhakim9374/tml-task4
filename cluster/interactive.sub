@@ -1,0 +1,24 @@
+# Interactive GPU job for the heavier forging experiments (learned denoisers,
+# surrogate-decoder training, diffusion re-embedding). The residual-transplant
+# baseline runs fine on a laptop CPU; only the stretch methods need this.
+#
+#   condor_submit -i cluster/interactive.sub
+#
+# Then, inside the container (cd into wherever you cloned the repo):
+#   cd ~/tml-task4
+#   pip install -r requirements.txt
+#   python -m scripts.build_submission --help
+
+universe      = docker
+docker_image  = pytorch/pytorch:2.3.1-cuda12.1-cudnn8-devel
+
+request_GPUs   = 1
+request_CPUs   = 4
+request_memory = 16G
+
+should_transfer_files = YES
+requirements          = UidDomain == "cs.uni-saarland.de"
++WantGPUHomeMounted   = true
++WantScratchMounted   = true
+
+queue

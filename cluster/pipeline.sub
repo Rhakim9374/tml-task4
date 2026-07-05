@@ -1,0 +1,33 @@
+# HTCondor submit file: extract watermarks + build a budget sweep of zips.
+# Run condor_submit from the repo root (paths derive from $ENV(PWD)).
+#
+#   condor_submit cluster/pipeline.sub \
+#       -append "args=--budgets 0.02,0.03,0.04,0.06" -append "tag=sweep"
+#
+# The foundation pipeline is light (a denoiser + LPIPS bisection over 200 images);
+# one GPU is plenty. The heavier per-group attacks fan out via their own launch
+# scripts across the 16 GPUs.
+
+universe      = docker
+docker_image  = pytorch/pytorch:2.3.1-cuda12.1-cudnn8-devel
+executable    = /bin/bash
+
+args = --budgets 0.02,0.03,0.04,0.06
+tag  = pipeline
+
+arguments = $ENV(PWD)/cluster/run_pipeline.sh $(args)
+
+output = $ENV(PWD)/runlogs/$(tag).$(ClusterId).$(ProcId).out
+error  = $ENV(PWD)/runlogs/$(tag).$(ClusterId).$(ProcId).err
+log    = $ENV(PWD)/runlogs/$(tag).$(ClusterId).log
+
+request_GPUs   = 1
+request_CPUs   = 4
+request_memory = 16G
+
+should_transfer_files = YES
+requirements          = UidDomain == "cs.uni-saarland.de"
++WantGPUHomeMounted   = true
++WantScratchMounted   = true
+
+queue 1

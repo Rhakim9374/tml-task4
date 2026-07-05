@@ -1,0 +1,9 @@
+numpy>=1.24
+pillow>=10.0
+requests>=2.31
+torch>=2.0
+torchvision>=0.15
+lpips>=0.1.4
+scipy>=1.10
+scikit-image>=0.21
+opencv-python-headless>=4.8

@@ -51,9 +51,13 @@ PY
 fi
 
 # 2. Extract. The zip holds clean_targets/ and watermarked_sources/ at the top level.
+# Use Python's zipfile (the pytorch container has no `unzip` binary).
 echo "==> extracting $ZIP -> $DST"
 mkdir -p "$DST"
-unzip -q -o "$ZIP" -d "$DST"
+python - "$ZIP" "$DST" <<'PY'
+import sys, zipfile
+zipfile.ZipFile(sys.argv[1]).extractall(sys.argv[2])
+PY
 n="$(ls "$DST/clean_targets" 2>/dev/null | wc -l | tr -d ' ')"
 [ "$n" = "200" ] || { echo "ERROR: expected 200 clean targets, found $n" >&2; exit 1; }
 echo "FETCH OK -> $DST ($n clean targets, $(ls -d "$DST"/watermarked_sources/WM_* | wc -l | tr -d ' ') WM groups)"

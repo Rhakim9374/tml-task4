@@ -12,6 +12,11 @@ CODE_DIR="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 cd "$CODE_DIR"
 
 pip install --quiet -r requirements.txt
+# invisible-watermark drags in the non-headless opencv-python (needs libGL.so.1,
+# which the container lacks) and shadows opencv-python-headless. Force headless so
+# `import cv2` works without a display library.
+pip uninstall -y --quiet opencv-python 2>/dev/null || true
+pip install --quiet --force-reinstall --no-deps opencv-python-headless
 
 # Data must already be at data/Dataset (fetch_data.sh or scp). Fail early if not.
 if [ ! -d data/Dataset/clean_targets ]; then

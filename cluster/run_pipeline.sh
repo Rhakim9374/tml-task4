@@ -16,7 +16,7 @@ pip install --quiet -r requirements.txt
 # which the container lacks) and shadows opencv-python-headless. Force headless so
 # `import cv2` works without a display library.
 pip uninstall -y --quiet opencv-python 2>/dev/null || true
-pip install --quiet --force-reinstall --no-deps opencv-python-headless
+pip install --quiet --force-reinstall --no-deps "opencv-python-headless<5"
 
 # Data must already be at data/Dataset (fetch_data.sh or scp). Fail early if not.
 if [ ! -d data/Dataset/clean_targets ]; then

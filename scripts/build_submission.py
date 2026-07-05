@@ -19,7 +19,7 @@ from pathlib import Path
 
 import numpy as np
 
-from src import forge
+from src import forge, quality, reembed
 from src.data import iter_groups, load_group_sources, load_rgb, save_rgb
 from src.extract import best_extraction
 
@@ -47,6 +47,18 @@ def build_one(args, watermarks, budget, out_zip: Path, tmp_root: Path):
     tmp.mkdir(parents=True, exist_ok=True)
     stats = []
     for g in iter_groups(args.dataset):
+        scheme = None if args.no_reembed else reembed.GROUP_SCHEME.get(g.name)
+        if scheme:
+            # Identified public scheme: decode the shared message, re-embed it.
+            msg = reembed.extract_message(g.source_paths, scheme)
+            for tpath in g.target_paths:
+                clean = load_rgb(tpath)
+                forged = reembed.embed_message(clean, msg, scheme)
+                save_rgb(tmp / tpath.name, forged)
+                stats.append((quality.lpips_distance(clean, forged, args.net),
+                              quality.psnr(clean, forged), float("nan")))
+            print(f"  {g.name}: re-embedded via {scheme}")
+            continue
         delta = watermarks[g.name].astype(np.float32)
         for tpath in g.target_paths:
             clean = load_rgb(tpath)
@@ -84,6 +96,8 @@ def main():
                     help="fixed scale instead of an LPIPS budget (no LPIPS model needed)")
     ap.add_argument("--net", default="alex", choices=["alex", "vgg", "squeeze"])
     ap.add_argument("--cap-rms", type=float, default=24.0, dest="cap_rms")
+    ap.add_argument("--no-reembed", action="store_true",
+                    help="disable public-scheme re-embedding (additive transplant for all groups)")
     ap.add_argument("--tmp", default="submissions/_tmp", type=Path)
     args = ap.parse_args()
 

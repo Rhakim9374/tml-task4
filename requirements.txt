@@ -10,3 +10,5 @@ scipy>=1.10
 scikit-image>=0.21
 PyWavelets>=1.4          # required by scikit-image nlmeans (sigma est.) + wavelet denoisers
 opencv-python-headless>=4.8,<5
+invisible-watermark>=0.2.0   # RivaGAN/DwtDct decode+encode for scheme re-embedding
+onnxruntime>=1.16            # RivaGAN model backend

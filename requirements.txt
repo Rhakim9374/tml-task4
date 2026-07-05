@@ -8,4 +8,5 @@ torchvision>=0.15
 lpips>=0.1.4
 scipy>=1.10
 scikit-image>=0.21
+PyWavelets>=1.4          # required by scikit-image nlmeans (sigma est.) + wavelet denoisers
 opencv-python-headless>=4.8,<5

@@ -22,6 +22,10 @@ import numpy as np
 import torch
 from PIL import Image
 
+# We are run from inside the candidate's repo (cd SepMark && python3 .../crack_screen.py);
+# Python only puts the script's own dir on sys.path, so add the cwd for `import network` etc.
+sys.path.insert(0, os.getcwd())
+
 WM5_TARGET = "-0.39, -0.49"  # WM_5's corr(R,G), corr(G,B)
 
 

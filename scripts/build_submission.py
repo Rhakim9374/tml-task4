@@ -53,13 +53,17 @@ def build_one(args, watermarks, budget, out_zip: Path, tmp_root: Path):
             # Identified public scheme: decode the shared message, re-embed it.
             method, length = scheme_cfg
             msg = reembed.extract_message(g.source_paths, method, length)
+            beta = args.reembed_blends.get(g.name, 1.0)  # blend<1 trades BitAcc margin for lower LPIPS
             for tpath in g.target_paths:
                 clean = load_rgb(tpath)
                 forged = reembed.embed_message(clean, msg, method)
+                if beta != 1.0:
+                    forged = np.clip(clean + beta * (forged - clean), 0.0, 255.0)
                 save_rgb(tmp / tpath.name, forged)
                 stats.append((quality.lpips_distance(clean, forged, args.net),
                               quality.psnr(clean, forged), float("nan")))
-            print(f"  {g.name}: re-embedded via {method} ({length}-bit)")
+            print(f"  {g.name}: re-embedded via {method} ({length}-bit)"
+                  + (f" blend beta={beta}" if beta != 1.0 else ""))
             continue
         delta = watermarks[g.name].astype(np.float32)
         g_budget = args.group_budgets.get(g.name, budget)
@@ -73,13 +77,23 @@ def build_one(args, watermarks, budget, out_zip: Path, tmp_root: Path):
             stats.append((r.lpips, r.psnr, r.alpha))
     # Override with images forged in a separate environment (e.g. VINE re-embed,
     # or FNNS/surrogate output) — any <name>.png present in a --prebuilt dir wins.
+    # With --prebuilt-blend WM_k:beta, blend the re-embed toward the clean target
+    # (forged = clean + beta*(reembed - clean)) to cut LPIPS on groups with BitAcc margin.
     for pb in args.prebuilt or []:
         pb = Path(pb)
         n = 0
         for f in pb.glob("*.png"):
-            shutil.copy(f, tmp / f.name)
+            grp = f"WM_{(int(f.stem) - 1) // 25 + 1}"
+            beta = args.prebuilt_blends.get(grp, 1.0)
+            if beta == 1.0:
+                shutil.copy(f, tmp / f.name)
+            else:
+                clean = load_rgb(args.dataset / "clean_targets" / f.name)
+                reemb = load_rgb(f)
+                save_rgb(tmp / f.name, np.clip(clean + beta * (reemb - clean), 0.0, 255.0))
             n += 1
-        print(f"  prebuilt override: {n} images from {pb}")
+        blends = {g: b for g, b in args.prebuilt_blends.items()} or ""
+        print(f"  prebuilt override: {n} images from {pb}" + (f"  blends={blends}" if blends else ""))
 
     pngs = sorted(tmp.glob("*.png"), key=lambda p: int(p.stem))
     assert len(pngs) == 200, f"expected 200 images, got {len(pngs)}"
@@ -115,12 +129,22 @@ def main():
                     help="dir of pre-forged <name>.png images to override (repeatable); e.g. VINE WM_4 output")
     ap.add_argument("--group-budget", default="", dest="group_budget_str",
                     help="per-group LPIPS budget overrides, e.g. 'WM_3:0.04,WM_5:0.008'")
+    ap.add_argument("--reembed-blend", default="", dest="reembed_blend_str",
+                    help="blend inline re-embeds toward clean (BitAcc margin -> lower LPIPS), e.g. 'WM_2:0.7'")
+    ap.add_argument("--prebuilt-blend", default="", dest="prebuilt_blend_str",
+                    help="blend --prebuilt re-embeds toward clean, e.g. 'WM_4:0.8,WM_6:0.8'")
     ap.add_argument("--tmp", default="submissions/_tmp", type=Path)
     args = ap.parse_args()
-    args.group_budgets = {}
-    for part in filter(None, args.group_budget_str.split(",")):
-        name, val = part.split(":")
-        args.group_budgets[name.strip()] = float(val)
+
+    def _parse_map(s):
+        d = {}
+        for part in filter(None, s.split(",")):
+            name, val = part.split(":")
+            d[name.strip()] = float(val)
+        return d
+    args.group_budgets = _parse_map(args.group_budget_str)
+    args.reembed_blends = _parse_map(args.reembed_blend_str)
+    args.prebuilt_blends = _parse_map(args.prebuilt_blend_str)
 
     watermarks = get_watermarks(args)
     if args.budgets:

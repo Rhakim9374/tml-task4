@@ -1,0 +1,31 @@
+# HTCondor submit file: WM_5 crack lottery (SepMark + CIN decode/color screen).
+# Run condor_submit from the repo root (paths derive from $ENV(PWD)).
+#
+#   condor_submit cluster/crack_lottery.sub
+#   # then watch the result:
+#   tail -f runlogs/crack.*.out
+#
+# The compute is tiny (decode 25 128px images with a small CNN); the job mainly
+# downloads ~640MB of checkpoints over the docker image's outbound HTTPS. One GPU
+# is requested to match the pool's docker/GPU pattern but is barely used.
+
+universe      = docker
+docker_image  = pytorch/pytorch:2.3.1-cuda12.1-cudnn8-devel
+executable    = /bin/bash
+
+arguments = $ENV(PWD)/cluster/crack_lottery.sh $ENV(PWD)
+
+output = $ENV(PWD)/runlogs/crack.$(ClusterId).$(ProcId).out
+error  = $ENV(PWD)/runlogs/crack.$(ClusterId).$(ProcId).err
+log    = $ENV(PWD)/runlogs/crack.$(ClusterId).log
+
+request_GPUs   = 1
+request_CPUs   = 4
+request_memory = 16G
+
+should_transfer_files = YES
+requirements          = UidDomain == "cs.uni-saarland.de"
++WantGPUHomeMounted   = true
++WantScratchMounted   = true
+
+queue 1

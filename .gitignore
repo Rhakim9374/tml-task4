@@ -25,6 +25,14 @@ artifacts/
 *.npz
 *.npy
 
+# Third-party model weights — downloaded locally, never committed (>100MB, GitHub rejects).
+# The pipeline re-embeds/builds everything on the laptop; the repo only needs our code.
+InvisMark/
+*.ckpt
+*.pt
+*.pth
+*.onnx
+
 # Python artifacts
 __pycache__/
 *.py[cod]

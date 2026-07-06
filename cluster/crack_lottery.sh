@@ -51,7 +51,8 @@ jobs = [("1VGeBtSpxB6zQahZ5ilMl0uaTOz_jORsJ", "SepMark/EC_99.pth"),
 for fid, out in jobs:
     if os.path.exists(out) and os.path.getsize(out) > 1_000_000:
         print("have", out); continue
-    gdown.download(id=fid, output=out, quiet=False, fuzzy=True)
+    # uc?id= URL form works across all gdown versions (no id=/fuzzy= kwargs needed)
+    gdown.download("https://drive.google.com/uc?id=" + fid, output=out, quiet=False)
 PY
 
 set +e

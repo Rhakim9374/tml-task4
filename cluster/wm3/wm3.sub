@@ -1,0 +1,24 @@
+# WM_3 FNNS ensemble sweep — one GPU process per variant, all in parallel.
+# Submit from the repo root on the cluster:  condor_submit cluster/wm3/wm3.sub
+universe                = docker
+docker_image            = pytorch/pytorch:2.3.1-cuda12.1-cudnn8-devel
+executable              = /bin/bash
+arguments               = cluster/wm3/run_one.sh $(mode) $(steps) $(lam) $(wp) $(rail) $(tag)
+should_transfer_files   = NO
+request_gpus            = 1
+request_cpus            = 4
+request_memory          = 16 GB
+output                  = runlogs/wm3_$(tag).out
+error                   = runlogs/wm3_$(tag).err
+log                     = runlogs/wm3.log
+
+# mode, steps, lam, wp, rail, tag  — the ensemble (RoSteALS+PIMoG) variants are the point;
+# solo is the adversarial control (expected to fail the held-out PIMoG check).
+queue mode, steps, lam, wp, rail, tag from (
+  ensemble, 1500, 0.02, 1.0, 0.06, ens_base
+  ensemble, 1500, 0.01, 2.0, 0.08, ens_strongP
+  ensemble, 2500, 0.03, 1.5, 0.05, ens_deep_lowrail
+  ensemble, 1500, 0.02, 3.0, 0.10, ens_pimogheavy
+  ensemble, 2000, 0.015, 1.0, 0.06, ens_midlong
+  rosteals, 1500, 0.02, 1.0, 0.06, solo_control
+)

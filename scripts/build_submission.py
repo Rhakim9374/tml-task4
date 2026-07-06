@@ -14,6 +14,7 @@ one pass (one per budget) so a single job produces a sweep to submit hourly.
 from __future__ import annotations
 
 import argparse
+import shutil
 import zipfile
 from pathlib import Path
 
@@ -47,27 +48,39 @@ def build_one(args, watermarks, budget, out_zip: Path, tmp_root: Path):
     tmp.mkdir(parents=True, exist_ok=True)
     stats = []
     for g in iter_groups(args.dataset):
-        scheme = None if args.no_reembed else reembed.GROUP_SCHEME.get(g.name)
-        if scheme:
+        scheme_cfg = None if args.no_reembed else reembed.GROUP_SCHEME.get(g.name)
+        if scheme_cfg:
             # Identified public scheme: decode the shared message, re-embed it.
-            msg = reembed.extract_message(g.source_paths, scheme)
+            method, length = scheme_cfg
+            msg = reembed.extract_message(g.source_paths, method, length)
             for tpath in g.target_paths:
                 clean = load_rgb(tpath)
-                forged = reembed.embed_message(clean, msg, scheme)
+                forged = reembed.embed_message(clean, msg, method)
                 save_rgb(tmp / tpath.name, forged)
                 stats.append((quality.lpips_distance(clean, forged, args.net),
                               quality.psnr(clean, forged), float("nan")))
-            print(f"  {g.name}: re-embedded via {scheme}")
+            print(f"  {g.name}: re-embedded via {method} ({length}-bit)")
             continue
         delta = watermarks[g.name].astype(np.float32)
+        g_budget = args.group_budgets.get(g.name, budget)
         for tpath in g.target_paths:
             clean = load_rgb(tpath)
             if args.alpha is not None:
                 r = forge.forge_to_alpha(clean, delta, args.alpha)
             else:
-                r = forge.forge_to_lpips(clean, delta, budget, net=args.net, cap_rms=args.cap_rms)
+                r = forge.forge_to_lpips(clean, delta, g_budget, net=args.net, cap_rms=args.cap_rms)
             save_rgb(tmp / tpath.name, r.forged)
             stats.append((r.lpips, r.psnr, r.alpha))
+    # Override with images forged in a separate environment (e.g. VINE re-embed,
+    # or FNNS/surrogate output) — any <name>.png present in a --prebuilt dir wins.
+    for pb in args.prebuilt or []:
+        pb = Path(pb)
+        n = 0
+        for f in pb.glob("*.png"):
+            shutil.copy(f, tmp / f.name)
+            n += 1
+        print(f"  prebuilt override: {n} images from {pb}")
+
     pngs = sorted(tmp.glob("*.png"), key=lambda p: int(p.stem))
     assert len(pngs) == 200, f"expected 200 images, got {len(pngs)}"
     out_zip.parent.mkdir(parents=True, exist_ok=True)
@@ -98,8 +111,16 @@ def main():
     ap.add_argument("--cap-rms", type=float, default=24.0, dest="cap_rms")
     ap.add_argument("--no-reembed", action="store_true",
                     help="disable public-scheme re-embedding (additive transplant for all groups)")
+    ap.add_argument("--prebuilt", action="append", default=[],
+                    help="dir of pre-forged <name>.png images to override (repeatable); e.g. VINE WM_4 output")
+    ap.add_argument("--group-budget", default="", dest="group_budget_str",
+                    help="per-group LPIPS budget overrides, e.g. 'WM_3:0.04,WM_5:0.008'")
     ap.add_argument("--tmp", default="submissions/_tmp", type=Path)
     args = ap.parse_args()
+    args.group_budgets = {}
+    for part in filter(None, args.group_budget_str.split(",")):
+        name, val = part.split(":")
+        args.group_budgets[name.strip()] = float(val)
 
     watermarks = get_watermarks(args)
     if args.budgets:

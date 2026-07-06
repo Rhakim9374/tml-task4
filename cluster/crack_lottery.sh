@@ -42,9 +42,17 @@ fetch("sh1newu", "SepMark")
 fetch("rmpku", "CIN")
 PY
 
-echo ">> downloading checkpoints (SepMark ~502MB, CIN ~138MB)"
-[ -f SepMark/EC_99.pth ] || gdown 1VGeBtSpxB6zQahZ5ilMl0uaTOz_jORsJ -O SepMark/EC_99.pth
-[ -f CIN/cin.pth ]       || gdown 1wqnqhPv92mHwkEI4nMh-sI5aDgh-usr7 -O CIN/cin.pth
+echo ">> downloading checkpoints (SepMark ~502MB, CIN ~138MB) via gdown Python API"
+# The gdown CLI entry point is often off PATH in the container; use the API directly.
+python3 - <<'PY'
+import os, gdown
+jobs = [("1VGeBtSpxB6zQahZ5ilMl0uaTOz_jORsJ", "SepMark/EC_99.pth"),
+        ("1wqnqhPv92mHwkEI4nMh-sI5aDgh-usr7", "CIN/cin.pth")]
+for fid, out in jobs:
+    if os.path.exists(out) and os.path.getsize(out) > 1_000_000:
+        print("have", out); continue
+    gdown.download(id=fid, output=out, quiet=False, fuzzy=True)
+PY
 
 set +e
 echo; echo "===================== SepMark (128/30, conf 50) ====================="

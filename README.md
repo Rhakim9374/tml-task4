@@ -21,10 +21,11 @@ that library's genuine encoder. This reproduces the real watermark, so the detec
 it directly, at near-perfect bit-accuracy and imperceptible distortion — and it generalizes
 to unseen images of the same scheme (no leaderboard tuning involved).
 
-Groups with no matching public scheme fall back to a **denoiser-residual additive
-transplant**: estimate the watermark as `mean_i(src_i − denoise(src_i))` (non-local-means
-picks up the pattern best), then add `alpha · w_hat` to each target, scaling `alpha` per
-image to a target LPIPS budget.
+The one group with no matching public scheme (WM_3) falls back to a **denoiser-residual
+additive transplant**: estimate the fixed watermark pattern as the per-pixel *median*
+`median_i(src_i − nlmeans(src_i))` over the 25 sources (content cancels, the shared
+watermark survives), then imprint `clip(clean + alpha · w_hat, 0, 255)` onto each target
+with a fixed `alpha = 2.0` (chosen at the transfer-vs-LPIPS knee).
 
 Identified schemes (each verified by a re-embed round-trip):
 
@@ -32,9 +33,9 @@ Identified schemes (each verified by a re-embed round-trip):
 |---|---|---|---|
 | WM_1 | 1–25 | DwtDct (32-bit) | `invisible-watermark` |
 | WM_2 | 26–50 | RivaGAN (32-bit) | `invisible-watermark` |
-| WM_3 | 51–75 | *(additive transplant)* | — |
+| WM_3 | 51–75 | *(additive transplant, alpha=2.0)* | — |
 | WM_4 | 76–100 | VINE (VINE-R, 100-bit) | Shilin-LU/VINE |
-| WM_5 | 101–125 | *(additive transplant)* | — |
+| WM_5 | 101–125 | CIN (CIN_256, 30-bit) | rmpku/CIN |
 | WM_6 | 126–150 | MBRS (MBRS_256, 256-bit) | jzyustc/MBRS |
 | WM_7 | 151–175 | TrustMark model Q (ECC) | `trustmark` |
 | WM_8 | 176–200 | TrustMark model P (raw) | `trustmark` |
@@ -52,22 +53,32 @@ HF_REPO=SprintML/tml2026_task4 HF_TOKEN=hf_xxx bash cluster/fetch_data.sh
 python -m scripts.extract_watermarks --dataset data/Dataset --out artifacts/wm.npz
 ```
 
-The three neural schemes each run in their own environment and write forged PNGs into
-`artifacts/<scheme>/` (setup commands are in the header of each script; all run on CPU or
-GPU via `--device`):
+The four neural schemes each run in their own environment (each scheme's public repo +
+checkpoint; setup commands are in the header of every script) and write forged PNGs into
+`artifacts/<scheme>/`:
 
 ```bash
-python scripts/reembed_vine.py       --out artifacts/vine_wm4       # WM_4  (VINE env)
-python scripts/reembed_mbrs.py       --out artifacts/mbrs_wm6       # WM_6  (MBRS env)
-python scripts/reembed_trustmark.py  --out artifacts/trustmark_wm78 # WM_7/8 (TrustMark env, numpy>=2)
+python scripts/reembed_vine.py       --out artifacts/vine_wm4         # WM_4  (VINE env)
+python scripts/reembed_mbrs.py       --out artifacts/mbrs_wm6         # WM_6  (MBRS env)
+python scripts/reembed_trustmark.py  --out artifacts/trustmark_wm78   # WM_7/8 (TrustMark env, numpy>=2)
+cd CIN && python /path/to/scripts/reembed_cin.py data/Dataset artifacts/cin_wm5 cin.pth && cd ..  # WM_5
 ```
 
-Assemble the submission — WM_1/WM_2 re-embed inline, WM_3/WM_5 transplant under the LPIPS
-budget, and the neural forgeries merged in via `--prebuilt`:
+The WM_3 transplant needs only `numpy`/`opencv` (no extra env):
 
 ```bash
-python -m scripts.build_submission --watermarks artifacts/wm.npz --lpips-budget 0.02 \
-    --prebuilt artifacts/vine_wm4 --prebuilt artifacts/mbrs_wm6 --prebuilt artifacts/trustmark_wm78 \
+python scripts/reembed_wm3_transplant.py --alpha 2.0 --out artifacts/wm3_transplant  # WM_3
+```
+
+Assemble the submission — WM_1/WM_2 are re-embedded inline (`invisible-watermark`); the
+WM_3 transplant and the four neural re-embeds are merged in via `--prebuilt` (each
+overrides its 25 images). `--alpha 2.0` keeps the build decoder-free (no LPIPS model
+needed):
+
+```bash
+python -m scripts.build_submission --dataset data/Dataset --watermarks artifacts/wm.npz --alpha 2.0 \
+    --prebuilt artifacts/wm3_transplant --prebuilt artifacts/vine_wm4 --prebuilt artifacts/cin_wm5 \
+    --prebuilt artifacts/mbrs_wm6 --prebuilt artifacts/trustmark_wm78 \
     --out submissions/best.zip
 ```
 
@@ -90,15 +101,21 @@ src/
   reembed.py     invisible-watermark (DwtDct/RivaGAN) scheme identification + re-embed
   quality.py     LPIPS quality score, S_det/S_qlt terms, PSNR
 scripts/
-  analyze.py             per-group forgeability diagnostic
-  extract_watermarks.py  estimate + cache each group's additive watermark
-  reembed_vine.py        VINE (WM_4) decode + re-embed          -> artifacts/vine_wm4
-  reembed_mbrs.py        MBRS (WM_6) decode + re-embed           -> artifacts/mbrs_wm6
-  reembed_trustmark.py   TrustMark (WM_7/8) decode + re-embed    -> artifacts/trustmark_wm78
-  build_submission.py    assemble the 200-image zip (re-embed + transplant + --prebuilt)
-  submit.py              POST the submission zip (key from TML_API_KEY)
+  analyze.py               per-group forgeability diagnostic (cross-half residual correlation)
+  crack_screen.py          scheme-identification screen for one candidate deep-WM library
+  extract_watermarks.py    estimate + cache each group's additive watermark
+  reembed_vine.py          VINE (WM_4) decode + re-embed        -> artifacts/vine_wm4
+  reembed_cin.py           CIN (WM_5) decode + re-embed         -> artifacts/cin_wm5
+  reembed_mbrs.py          MBRS (WM_6) decode + re-embed        -> artifacts/mbrs_wm6
+  reembed_trustmark.py     TrustMark (WM_7/8) decode + re-embed -> artifacts/trustmark_wm78
+  reembed_wm3_transplant.py  WM_3 median-residual transplant    -> artifacts/wm3_transplant
+  build_submission.py      assemble the 200-image zip (inline re-embed + transplant + --prebuilt)
+  submit.py                POST the submission zip (key from TML_API_KEY)
 cluster/
   fetch_data.sh    download + unpack the dataset
+  honest_core.py   content-floor delta metric (agree(sources) - agree(clean targets))
+  crack_lottery.sh / crack_lottery.sub   parallel scheme-identification sweep (GPU)
   pipeline.sub / run_pipeline.sh   extract + build a budget sweep (1 GPU)
   interactive.sub  interactive GPU job
+  wm3/             WM_3 held-out FNNS experiment (negative result; see wm3/README.md)
 ```
